@@ -49,17 +49,18 @@ def get_model(name, res, width, modes, in_ch=1, out_ch=1):
     #                       in_channels=in_ch,
     #                       out_channels=out_ch)
 
-    # U-NO (U-Shaped)
     elif name == "UNO":
+        n_layers = 5
+
         return UNO(
             in_channels=in_ch,
             out_channels=out_ch,
             hidden_channels=width,
             projection_channels=width,
-            n_layers=5,
-            uno_out_channels=width,  # required in newer versions
-            uno_n_modes=[(modes, modes)] * 5,  # Defines modes per layer
-            uno_scalings=[[1.0, 1.0]] * 5,  # Defines scaling per layer
+            n_layers=n_layers,
+            uno_out_channels=[width] * n_layers,
+            uno_n_modes=[(modes, modes)] * n_layers,
+            uno_scalings=[[1.0, 1.0]] * n_layers,
         )
 
     # CODANO (Attention-based)
