@@ -58,7 +58,7 @@ for MODEL in "${MODELS[@]}"; do
             --batch ${BATCH} \
             --modes 16 \
             --unroll 100 \
-            | grep "RESULT" >> ${JOB_DIR}/results.csv
+            >> ${JOB_DIR}/results.csv
 
         # 2. PROFILING RUN (With Nsys) - For visual analysis
         # Reduced unroll count to save disk space on traces
