@@ -39,8 +39,8 @@ MODELS=("FNO" "TFNO" "UNO")
 RESOLUTIONS=(64 128 256)
 BATCH_SIZES=(16 8 4)
 
-echo "Pausing DCGM for clean profiling..."
-dcgmi profile --pause
+# Create a CSV header file
+echo "RESULT,Model,Res,Batch,Modes,Width,Latency(ms),Throughput,Mem(MB)" > ${JOB_DIR}/results.csv
 
 for MODEL in "${MODELS[@]}"; do
     for i in "${!RESOLUTIONS[@]}"; do
@@ -48,24 +48,30 @@ for MODEL in "${MODELS[@]}"; do
         BATCH="${BATCH_SIZES[$i]}"
         REPORT_NAME="${MODEL}_r${RES}_b${BATCH}"
         
-        echo "------------------------------------------------"
-        echo "Running: $MODEL | Res: $RES | Batch: $BATCH"
+        echo "Processing: $MODEL | Res: $RES | Batch: $BATCH"
         
-        # Use $PY_EXEC instead of 'python'
+        # 1. LATENCY RUN (No Profiler) - Accurate CSV metrics
+        # We append output to the CSV file
+        $PY_EXEC benchmark.py \
+            --model ${MODEL} \
+            --res ${RES} \
+            --batch ${BATCH} \
+            --modes 16 \
+            --unroll 100 \
+            | grep "RESULT" >> ${JOB_DIR}/results.csv
+
+        # 2. PROFILING RUN (With Nsys) - For visual analysis
+        # Reduced unroll count to save disk space on traces
         srun nsys profile \
             --trace=cuda,nvtx,osrt,cudnn,cublas \
-            --stats=true \
-            --force-overwrite=true \
+            --sample=cpu \
             --output="${REPORT_NAME}" \
+            --force-overwrite=true \
             $PY_EXEC benchmark.py \
                 --model ${MODEL} \
                 --res ${RES} \
                 --batch ${BATCH} \
                 --modes 16 \
-                --unroll 50
+                --unroll 20 > /dev/null
     done
 done
-
-echo "Resuming DCGM..."
-dcgmi profile --resume
-echo "Job Complete."
