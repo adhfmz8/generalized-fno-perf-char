@@ -100,7 +100,7 @@ def run_benchmark(args):
     end_event = torch.cuda.Event(enable_timing=True)
     
     # NVTX Range for Nsight Systems
-    nvtx.range_push(f"{args.model}_B{args.batch}_R{args.res}")
+    nvtx.push_range(f"{args.model}_B{args.batch}_R{args.res}")
     
     with torch.no_grad():
         start_event.record()
@@ -109,7 +109,7 @@ def run_benchmark(args):
         end_event.record()
 
     torch.cuda.synchronize()
-    nvtx.range_pop()
+    nvtx.push_range()
 
     # 5. Metrics
     total_time_ms = start_event.elapsed_time(end_event)
