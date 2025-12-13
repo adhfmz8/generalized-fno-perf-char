@@ -52,7 +52,12 @@ def get_model(name, res, width, modes, in_ch=1, out_ch=1):
                    out_channels=out_ch, 
                    hidden_channels=width, 
                    projection_channels=width,
-                   n_layers=5) # Standard depth
+                   n_layers=5
+                   uno_out_channels=width,
+                   uno_n_modes=[(modes,modes)]*5, # Defines modes per layer
+                   uno_scalings=[[1.0,1.0]]*5 # Defines scaling per layer
+                   ) # Standard depth
+        
 
     # CODANO (Attention-based)
     elif name == 'CODANO':
