@@ -35,7 +35,7 @@ cd ${JOB_DIR}
 echo "Working directory: ${JOB_DIR}"
 
 # Define Experiment Matrix
-MODELS=("FNO") 
+MODELS=("FNO" "TFNO" "UNO") 
 RESOLUTIONS=(64 128 256)
 BATCH_SIZES=(16 8 4)
 
