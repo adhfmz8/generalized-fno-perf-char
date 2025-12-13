@@ -120,7 +120,7 @@ def run_benchmark(args):
         end_event.record()
 
     torch.cuda.synchronize()
-    nvtx.push_range()
+    nvtx.pop_range()
 
     # 5. Metrics
     total_time_ms = start_event.elapsed_time(end_event)
