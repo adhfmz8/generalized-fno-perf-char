@@ -158,7 +158,6 @@ def run_benchmark(args):
         )
 
     except Exception as e:
-        # Improved error logging
         print(f"ERR,{args.model},{args.dim}D,{args.res},{args.batch},0,0,0,Error")
         print(f"FAILED: {args.model} Res{args.res} : {e}", file=sys.stderr)
 
