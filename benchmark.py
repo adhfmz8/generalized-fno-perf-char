@@ -61,6 +61,7 @@ def get_model(name, res, width, modes, in_ch=1, out_ch=1):
             uno_out_channels=[width] * n_layers,
             uno_n_modes=[(modes, modes)] * n_layers,
             uno_scalings=[[1.0, 1.0]] * n_layers,
+            channel_mlp_skip="linear",
         )
 
     # CODANO (Attention-based)
@@ -99,7 +100,10 @@ def run_benchmark(args):
     x = torch.randn(*input_shape, device=device)
 
     # Warmup
-    print(f"--- Warming up {args.model} ({args.res}x{args.res}, b={args.batch}) ---")
+    print(
+        f"--- Warming up {args.model} ({args.res}x{args.res}, b={args.batch}) ---",
+        file=sys.stderr,
+    )
     with torch.no_grad():
         # Run enough warmup to settle JIT/Autotuner
         for _ in range(20):
@@ -107,7 +111,7 @@ def run_benchmark(args):
     torch.cuda.synchronize()
 
     # Timed Execution
-    print("--- Starting Timed Run ---")
+    print("--- Starting Timed Run ---", file=sys.stderr)
     start_event = torch.cuda.Event(enable_timing=True)
     end_event = torch.cuda.Event(enable_timing=True)
 
