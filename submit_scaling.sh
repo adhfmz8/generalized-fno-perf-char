@@ -21,48 +21,50 @@ mkdir -p ${JOB_DIR}
 cp ${SLURM_SUBMIT_DIR}/benchmark.py ${JOB_DIR}/
 cd ${JOB_DIR}
 
-# Create CSV Header
-echo "RESULT,Model,Dim,Res,Batch,Latency(ms),Throughput,Mem(MB),Compiled" > results.csv
+# Ensure scratch exists for data download
+mkdir -p $SCRATCH/neuralop_data
 
+# Create CSV Header
+echo "RESULT,Model,Dim,Res,Batch,Latency(ms),Throughput,Mem(MB),Compiled,Data" > results.csv
+
+# ==========================================
 # EXPERIMENT 1: 2D Comparative Analysis
-# Compare Algorithmic efficiency (FNO vs TFNO vs UNO vs HeavyCNN)
-echo "--- Starting Experiment 1: 2D Models ---"
+# Real Data (Darcy Flow)
+# ==========================================
+echo "--- Starting Experiment 1: 2D Models (Darcy Flow) ---"
 
 MODELS=("FNO" "TFNO" "UNO" "HEAVYCNN")
-# High resolutions to stress the 2D plane
-RESOLUTIONS=(128 256 512)
-BATCHES=(16 8 4)
+# Darcy is natively small, but FNO scales. We will test upscaling.
+RESOLUTIONS=(85 128 256) 
+BATCHES=(32 16 8)
 
 for MODEL in "${MODELS[@]}"; do
     for i in "${!RESOLUTIONS[@]}"; do
         RES="${RESOLUTIONS[$i]}"
         BATCH="${BATCHES[$i]}"
         
-        # 1. Standard Benchmark (CSV collection)
+        # Run with Real Data
         $PY_EXEC benchmark.py \
             --model ${MODEL} \
             --dim 2 \
             --res ${RES} \
             --batch ${BATCH} \
-            --modes 16 --width 64 --unroll 50 >> results.csv
+            --modes 16 --width 64 --unroll 50 \
+            --data real >> results.csv
             
-        # 2. Profiling (Optional: Comment out to save time if not analyzing traces yet)
+        # Profiling Run
         srun nsys profile --trace=cuda,nvtx --output="${MODEL}_2D_r${RES}" --force-overwrite=true \
-            $PY_EXEC benchmark.py --model ${MODEL} --dim 2 --res ${RES} --batch ${BATCH} --unroll 10 > /dev/null
+            $PY_EXEC benchmark.py --model ${MODEL} --dim 2 --res ${RES} --batch ${BATCH} --unroll 10 --data real > /dev/null
     done
 done
 
 # ==========================================
 # EXPERIMENT 2: 3D Hardware Limits
-# Stressing Memory Capacity (FNO vs HeavyCNN)
+# Synthetic Data (Navier Stokes 3D is too large to download in job)
 # ==========================================
-echo "--- Starting Experiment 2: 3D Models ---"
+echo "--- Starting Experiment 2: 3D Models (Synthetic) ---"
 
-# Only running FNO (Memory Bound) and HeavyCNN (Compute Bound)
-# TFNO is optional here, but skipped for simplicity as requested.
 MODELS_3D=("FNO" "HEAVYCNN")
-
-# 3D Resolutions scale cubically. 64^3 = 262k points. 128^3 = 2M points.
 RESOLUTIONS_3D=(32 64 96) 
 BATCHES_3D=(4 2 1)
 
@@ -76,10 +78,10 @@ for MODEL in "${MODELS_3D[@]}"; do
             --dim 3 \
             --res ${RES} \
             --batch ${BATCH} \
-            --modes 16 --width 64 --unroll 20 >> results.csv
+            --modes 16 --width 64 --unroll 20 \
+            --data synthetic >> results.csv
         
-        # 2. Profiling Run (LOW unroll for clean visualization)
-        # We only need 3 steps: One to see the start, one steady state, one end.
+        # Profiling 3D
         echo "Profiling 3D ${MODEL}..."
         srun nsys profile \
             --trace=cuda,nvtx,osrt \
@@ -92,7 +94,8 @@ for MODEL in "${MODELS_3D[@]}"; do
                 --res ${RES} \
                 --batch ${BATCH} \
                 --modes 16 --width 64 \
-                --unroll 3 > /dev/null
+                --unroll 3 \
+                --data synthetic > /dev/null
     done
 done
 
