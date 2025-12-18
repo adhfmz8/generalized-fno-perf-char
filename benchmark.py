@@ -164,6 +164,7 @@ def run_benchmark(args):
         model.eval()
 
         if args.compile:
+            print(">>> Starting Torch Compilation...", file=sys.stderr)
             model = torch.compile(model, mode="reduce-overhead")
 
         # Warmup
@@ -172,7 +173,7 @@ def run_benchmark(args):
             file=sys.stderr,
         )
         with torch.no_grad():
-            for _ in range(10):
+            for _ in range(20):
                 _ = model(x1)
                 _ = model(x2)
         torch.cuda.synchronize()
@@ -181,7 +182,7 @@ def run_benchmark(args):
         start_event = torch.cuda.Event(enable_timing=True)
         end_event = torch.cuda.Event(enable_timing=True)
 
-        nvtx.push_range(f"{args.model}_{args.dim}D_R{args.res}")
+        nvtx.push_range("PROFILE_BLOCK")
         with torch.no_grad():
             start_event.record()
             for i in range(args.unroll):
