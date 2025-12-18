@@ -50,11 +50,11 @@ for MODEL in "${MODELS[@]}"; do
             --res ${RES} \
             --batch ${BATCH} \
             --modes 16 --width 64 --unroll 50 \
-            --data real >> results.csv
+            --data real --compile >> results.csv
             
         # Profiling Run
         srun nsys profile --trace=cuda,nvtx --output="${MODEL}_2D_r${RES}" --force-overwrite=true \
-            $PY_EXEC benchmark.py --model ${MODEL} --dim 2 --res ${RES} --batch ${BATCH} --unroll 10 --data real > /dev/null
+            $PY_EXEC benchmark.py --model ${MODEL} --dim 2 --res ${RES} --batch ${BATCH} --unroll 10 --data real --compile > /dev/null
     done
 done
 
