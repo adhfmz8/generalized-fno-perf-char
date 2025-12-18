@@ -164,7 +164,7 @@ def run_benchmark(args):
         model.eval()
 
         if args.compile:
-            model = torch.compile(model)
+            model = torch.compile(model, mode="reduce-overhead")
 
         # Warmup
         print(
