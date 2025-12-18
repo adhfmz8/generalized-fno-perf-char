@@ -10,6 +10,7 @@
 #SBATCH -C 'gpu&hbm80g'
 
 module load python
+module load cudatoolkit
 
 # 1. Setup Environment
 PY_EXEC="$SCRATCH/no_paper_env/bin/python"
@@ -43,8 +44,9 @@ for MODEL in "${MODELS_2D[@]}"; do
         --trace=cuda,nvtx \
         --capture-range=nvtx \
         --nvtx-capture="PROFILE_BLOCK" \
-        --output="profile_${MODEL}_2D_res${RES}" \
+        --output=${JOB_DIR}/profile_${MODEL}_2D_res${RES}" \
         --force-overwrite=true \
+        --wait=all \
         $PY_EXEC $SLURM_SUBMIT_DIR/benchmark.py \
             --model ${MODEL} --dim 2 --res ${RES} --batch ${BATCH_2D} \
             --compile --unroll 5 --data real
@@ -70,8 +72,9 @@ for MODEL in "${MODELS_3D[@]}"; do
         --trace=cuda,nvtx \
         --capture-range=nvtx \
         --nvtx-capture="PROFILE_BLOCK" \
-        --output="profile_${MODEL}_3D_res${RES}" \
+        --output=${JOB_DIR}/profile_${MODEL}_3D_res${RES}" \
         --force-overwrite=true \
+        --wait=all \
         $PY_EXEC $SLURM_SUBMIT_DIR/benchmark.py \
             --model ${MODEL} --dim 3 --res ${RES} --batch ${BATCH_3D} \
             --compile --unroll 5 --data synthetic
