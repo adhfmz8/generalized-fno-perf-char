@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 import argparse
-import nvtx
+from torch.cuda import nvtx as torch_nvtx
 import sys
 import os
 
@@ -182,7 +182,7 @@ def run_benchmark(args):
         start_event = torch.cuda.Event(enable_timing=True)
         end_event = torch.cuda.Event(enable_timing=True)
 
-        nvtx.push_range("PROFILE_BLOCK")
+        torch_nvtx.range_push("PROFILE_BLOCK")
         with torch.no_grad():
             start_event.record()
             for i in range(args.unroll):
@@ -190,7 +190,7 @@ def run_benchmark(args):
                 _ = model(input_tensor)
             end_event.record()
         torch.cuda.synchronize()
-        nvtx.pop_range()
+        torch_nvtx.range_pop()
 
         total_time_ms = start_event.elapsed_time(end_event)
         avg_latency_ms = total_time_ms / args.unroll
