@@ -33,33 +33,21 @@ BATCH_2D=16
 for MODEL in "${MODELS_2D[@]}"; do
     for RES in "${RESOLUTIONS_2D[@]}"; do
         echo "Running Compiled ${MODEL} 2D at Res ${RES}..."
-        
         $PY_EXEC $SLURM_SUBMIT_DIR/benchmark.py \
-            --model ${MODEL} \
-            --dim 2 \
-            --res ${RES} \
-            --batch ${BATCH_2D} \
-            --modes 16 --width 64 --unroll 50 \
-            --data real \
-            --compile >> results_compiled.csv
-        
+            --model ${MODEL} --dim 2 --res ${RES} --batch ${BATCH_2D} \
+            --modes 16 --width 64 --unroll 50 --data real --compile >> results_compiled.csv
     done
 
-    # use --unroll 5 so the profile file isn't huge
-    echo "Profiling ${MODEL} at highest resolution..."
+    echo "Profiling ${MODEL} at Res ${RES}..."
     srun nsys profile \
         --trace=cuda,nvtx \
         --capture-range=nvtx \
         --nvtx-capture="PROFILE_BLOCK" \
-        --output="profile_${MODEL}_2D_compiled" \
+        --output="profile_${MODEL}_2D_res${RES}" \
         --force-overwrite=true \
-        $PY_EXEC benchmark.py \
-            --model ${MODEL} \
-            --res ${RES} \
-            --batch ${BATCH_2D} \
-            --compile \
-            --unroll 5
-            --data real
+        $PY_EXEC $SLURM_SUBMIT_DIR/benchmark.py \
+            --model ${MODEL} --dim 2 --res ${RES} --batch ${BATCH_2D} \
+            --compile --unroll 5 --data real
 done
 
 # ==========================================
@@ -72,30 +60,21 @@ BATCH_3D=4
 for MODEL in "${MODELS_3D[@]}"; do
     for RES in "${RESOLUTIONS_3D[@]}"; do
         echo "Running Compiled ${MODEL} 3D at Res ${RES}..."
-        
         $PY_EXEC $SLURM_SUBMIT_DIR/benchmark.py \
-            --model ${MODEL} \
-            --dim 3 \
-            --res ${RES} \
-            --batch ${BATCH_3D} \
-            --modes 16 --width 64 --unroll 20 \
-            --data synthetic \
-            --compile >> results_compiled.csv
+            --model ${MODEL} --dim 3 --res ${RES} --batch ${BATCH_3D} \
+            --modes 16 --width 64 --unroll 20 --data synthetic --compile >> results_compiled.csv
     done
-    echo "Profiling ${MODEL} at highest resolution..."
+
+    echo "Profiling ${MODEL} at Res ${RES}..."
     srun nsys profile \
-        --trace=cuda,nvtx,triton \
+        --trace=cuda,nvtx \
         --capture-range=nvtx \
         --nvtx-capture="PROFILE_BLOCK" \
-        --output="profile_${MODEL}_3D_compiled" \
+        --output="profile_${MODEL}_3D_res${RES}" \
         --force-overwrite=true \
-        $PY_EXEC benchmark.py \
-            --model ${MODEL} \
-            --res ${RES} \
-            --batch ${BATCH_3D} \
-            --compile \
-            --unroll 5
-            --data synthetic
+        $PY_EXEC $SLURM_SUBMIT_DIR/benchmark.py \
+            --model ${MODEL} --dim 3 --res ${RES} --batch ${BATCH_3D} \
+            --compile --unroll 5 --data synthetic
 done
 
 echo "Compiled benchmarking complete. Results in ${JOB_DIR}/results_compiled.csv"
