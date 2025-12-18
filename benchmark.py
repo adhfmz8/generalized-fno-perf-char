@@ -165,7 +165,7 @@ def run_benchmark(args):
 
         if args.compile:
             print(">>> Starting Torch Compilation...", file=sys.stderr)
-            model = torch.compile(model, mode="reduce-overhead")
+            model = torch.compile(model, mode="default")
 
         # Warmup
         print(

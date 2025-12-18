@@ -48,7 +48,7 @@ for MODEL in "${MODELS_2D[@]}"; do
     # use --unroll 5 so the profile file isn't huge
     echo "Profiling ${MODEL} at highest resolution..."
     srun nsys profile \
-        --trace=cuda,nvtx,triton \
+        --trace=cuda,nvtx \
         --capture-range=nvtx \
         --nvtx-capture="PROFILE_BLOCK" \
         --output="profile_${MODEL}_2D_compiled" \
