@@ -44,7 +44,7 @@ for MODEL in "${MODELS_2D[@]}"; do
         --trace=cuda,nvtx \
         --capture-range=nvtx \
         --nvtx-capture="PROFILE_BLOCK" \
-        --output=${JOB_DIR}/profile_${MODEL}_2D_res${RES}" \
+        --output="${JOB_DIR}/profile_${MODEL}_2D_res${RES}" \
         --force-overwrite=true \
         --wait=all \
         $PY_EXEC $SLURM_SUBMIT_DIR/benchmark.py \
@@ -72,7 +72,7 @@ for MODEL in "${MODELS_3D[@]}"; do
         --trace=cuda,nvtx \
         --capture-range=nvtx \
         --nvtx-capture="PROFILE_BLOCK" \
-        --output=${JOB_DIR}/profile_${MODEL}_3D_res${RES}" \
+        --output="${JOB_DIR}/profile_${MODEL}_3D_res${RES}" \
         --force-overwrite=true \
         --wait=all \
         $PY_EXEC $SLURM_SUBMIT_DIR/benchmark.py \
