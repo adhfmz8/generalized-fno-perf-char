@@ -21,6 +21,10 @@ cd ${JOB_DIR}
 export TORCHINDUCTOR_CACHE_DIR="${JOB_DIR}/torch_cache"
 mkdir -p $TORCHINDUCTOR_CACHE_DIR
 
+export TMPDIR="${JOB_DIR}/nsys_tmp"
+export NSYS_TMP_DIR="${JOB_DIR}/nsys_tmp"
+mkdir -p "$NSYS_TMP_DIR"
+
 # 3. Create Results File
 echo "RESULT,Model,Dim,Res,Batch,Latency(ms),Throughput,Mem(MB),Compiled,Data" > results_compiled.csv
 
@@ -50,6 +54,7 @@ for MODEL in "${MODELS_2D[@]}"; do
         --output="${JOB_DIR}/profile_${MODEL}_2D_res${RES}" \
         --force-overwrite=true \
         --wait=all \
+        --stats=true \
         $PY_EXEC $SLURM_SUBMIT_DIR/benchmark.py \
             --model ${MODEL} --dim 2 --res ${RES} --batch ${BATCH_2D} \
             --compile --unroll 5 --data real
@@ -78,6 +83,7 @@ for MODEL in "${MODELS_3D[@]}"; do
         --output="${JOB_DIR}/profile_${MODEL}_3D_res${RES}" \
         --force-overwrite=true \
         --wait=all \
+        --stats=true \
         $PY_EXEC $SLURM_SUBMIT_DIR/benchmark.py \
             --model ${MODEL} --dim 3 --res ${RES} --batch ${BATCH_3D} \
             --compile --unroll 5 --data synthetic
