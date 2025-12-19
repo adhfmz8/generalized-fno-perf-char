@@ -53,11 +53,11 @@ for MODEL in "${MODELS_2D[@]}"; do
         --nvtx-capture="PROFILE_BLOCK" \
         --output="${JOB_DIR}/profile_${MODEL}_2D_res${RES}" \
         --force-overwrite=true \
-        --wait=all \
+        --wait=primary \
         --stats=true \
         $PY_EXEC $SLURM_SUBMIT_DIR/benchmark.py \
             --model ${MODEL} --dim 2 --res ${RES} --batch ${BATCH_2D} \
-            --compile --unroll 5 --data real
+            --compile --unroll 50 --data real
 done
 
 # ==========================================
@@ -82,11 +82,11 @@ for MODEL in "${MODELS_3D[@]}"; do
         --nvtx-capture="PROFILE_BLOCK" \
         --output="${JOB_DIR}/profile_${MODEL}_3D_res${RES}" \
         --force-overwrite=true \
-        --wait=all \
+        --wait=primary \
         --stats=true \
         $PY_EXEC $SLURM_SUBMIT_DIR/benchmark.py \
             --model ${MODEL} --dim 3 --res ${RES} --batch ${BATCH_3D} \
-            --compile --unroll 5 --data synthetic
+            --compile --unroll 50 --data synthetic
 done
 
 echo "Resuming DCGM..."
