@@ -31,6 +31,9 @@ MODELS_2D=("FNO" "TFNO" "UNO" "HEAVYCNN")
 RESOLUTIONS_2D=(128 256) 
 BATCH_2D=16
 
+echo "Pausing DCGM..."
+dcgmi profile --pause
+
 for MODEL in "${MODELS_2D[@]}"; do
     for RES in "${RESOLUTIONS_2D[@]}"; do
         echo "Running Compiled ${MODEL} 2D at Res ${RES}..."
@@ -79,5 +82,8 @@ for MODEL in "${MODELS_3D[@]}"; do
             --model ${MODEL} --dim 3 --res ${RES} --batch ${BATCH_3D} \
             --compile --unroll 5 --data synthetic
 done
+
+echo "Resuming DCGM..."
+dcgmi profile --resume
 
 echo "Compiled benchmarking complete. Results in ${JOB_DIR}/results_compiled.csv"
