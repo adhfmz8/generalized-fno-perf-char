@@ -5,8 +5,8 @@
 #SBATCH --ntasks=1
 #SBATCH --gpus-per-task=1
 #SBATCH --time=00:20:00
-#SBATCH --job-name=tfno_profile
-#SBATCH --output=profile_tfno-%j.out
+#SBATCH --job-name=fno_profile
+#SBATCH --output=profile_fno-%j.out
 #SBATCH -C 'gpu&hbm80g'
 
 module load python
@@ -23,12 +23,12 @@ export NSYS_TMP_DIR="${JOB_DIR}/nsys_tmp"
 mkdir -p "$TORCHINDUCTOR_CACHE_DIR" "$NSYS_TMP_DIR"
 
 # --- Run Profiler ---
-echo "Profiling TFNO 2D Res 256..."
+echo "Profiling FNO 2D Res 256..."
 
 srun nsys profile \
     --trace=cuda,nvtx \
     --capture-range=cudaProfilerApi \
-    --output="${JOB_DIR}/tfno_2d_256_compiled" \
+    --output="${JOB_DIR}/fno_2d_256_compiled" \
     --force-overwrite=true \
     --stats=true \
     $PY_EXEC $SLURM_SUBMIT_DIR/benchmark.py \
@@ -42,4 +42,4 @@ srun nsys profile \
         --data real \
         --compile
 
-echo "Done. File saved to ${JOB_DIR}/tfno_2d_256_compiled.nsys-rep"
+echo "Done. File saved to ${JOB_DIR}/fno_2d_256_compiled.nsys-rep"
