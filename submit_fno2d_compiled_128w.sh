@@ -28,7 +28,7 @@ echo "Profiling FNO 2D Res 256..."
 srun nsys profile \
     --trace=cuda,nvtx \
     --capture-range=cudaProfilerApi \
-    --output="${JOB_DIR}/fno_2d_256_compiled" \
+    --output="${JOB_DIR}/fno_2d_256_128w_compiled" \
     --force-overwrite=true \
     --stats=true \
     $PY_EXEC $SLURM_SUBMIT_DIR/benchmark.py \
