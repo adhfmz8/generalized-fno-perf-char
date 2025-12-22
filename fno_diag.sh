@@ -78,21 +78,25 @@ do
 done
 
 # --- PHASE 3: TARGETED NSIGHT SYSTEMS PROFILING ---
-# Goal: Visually inspect the CUDA kernels for the most interesting cases.
 echo "--- Phase 3: Targeted Nsight Systems Profiling ---"
 
-# Case 1: The "Slowdown" Case. Why is Res 32 compiled slow?
-srun nsys profile -t cuda,nvtx -o "${PROFILE_DIR}/trace_3d_res32_bf16_compiled" --force-overwrite true \
+# 1. Clean up old profile files to prevent "File Exists" or locking errors
+rm -f "${PROFILE_DIR}"/*.nsys-rep
+rm -f "${PROFILE_DIR}"/*.qdstrm
+
+# 2. Run with srun constrained to 1 task (-n 1)
+# Case 1: The "Slowdown" Case
+srun -n 1 --ntasks-per-node=1 nsys profile -t cuda,nvtx -o "${PROFILE_DIR}/trace_3d_res32_bf16_compiled" --force-overwrite true \
     $PY_EXEC $BENCHMARK_SCRIPT \
         --model TFNO --dim 3 --res 32 --batch 8 --precision bf16 --compile --unroll 20
 
-# Case 2: The "Speedup" Case. What does good compilation look like?
-srun nsys profile -t cuda,nvtx -o "${PROFILE_DIR}/trace_3d_res64_bf16_compiled" --force-overwrite true \
+# Case 2: The "Speedup" Case
+srun -n 1 --ntasks-per-node=1 nsys profile -t cuda,nvtx -o "${PROFILE_DIR}/trace_3d_res64_bf16_compiled" --force-overwrite true \
     $PY_EXEC $BENCHMARK_SCRIPT \
         --model TFNO --dim 3 --res 64 --batch 4 --precision bf16 --compile --unroll 20
 
-# Case 3: The Baseline. Eager mode for comparison.
-srun nsys profile -t cuda,nvtx -o "${PROFILE_DIR}/trace_3d_res64_bf16_eager" --force-overwrite true \
+# Case 3: The Baseline
+srun -n 1 --ntasks-per-node=1 nsys profile -t cuda,nvtx -o "${PROFILE_DIR}/trace_3d_res64_bf16_eager" --force-overwrite true \
     $PY_EXEC $BENCHMARK_SCRIPT \
         --model TFNO --dim 3 --res 64 --batch 4 --precision bf16 --unroll 20
 
