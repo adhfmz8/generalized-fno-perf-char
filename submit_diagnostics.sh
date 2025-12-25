@@ -55,16 +55,30 @@ run_and_log() {
     fi
 }
 
-# --- PHASE 1: PRECISION SWEEP ---
-echo "--- Phase 1: Full Precision Sweep (3D TFNO) ---"
-for PREC in "fp32" "tf32" "bf16"
+# --- PHASE 1: COMPUTE VS SPECTRAL & EAGER VS COMPILE ---
+echo "--- Phase 1: Baseline Sweep (TFNO vs HeavyCNN) ---"
+
+for MODEL in "TFNO" "HEAVYCNN"
 do
-    for COMPILE_FLAG in "" "--compile"
+    for PREC in "fp32" "tf32" "bf16"
     do
-        # Larger Resolution
-        run_and_log "Phase1_PrecSweep" --model TFNO --dim 3 --res 64 --batch 4 --width 32 --modes 12 --precision $PREC $COMPILE_FLAG
-        # Smaller Resolution
-        run_and_log "Phase1_PrecSweep" --model TFNO --dim 3 --res 32 --batch 8 --width 32 --modes 12 --precision $PREC $COMPILE_FLAG
+        for COMP_FLAG in "" "--compile"
+        do
+            # Define a tag to easily group these in pandas later
+            TAG="Phase1_${MODEL}_${PREC}"
+            
+            # Using Res 64, Batch 4 as the standard "Workload"
+            # Note: We keep 'modes' for TFNO; HeavyCNN will simply ignore that arg.
+            run_and_log $TAG \
+                --model $MODEL \
+                --dim 3 \
+                --res 64 \
+                --batch 4 \
+                --width 32 \
+                --modes 12 \
+                --precision $PREC \
+                $COMP_FLAG
+        done
     done
 done
 
@@ -107,6 +121,16 @@ srun -n 1 --ntasks-per-node=1 $NSYS_CMD -o "${PROFILE_DIR}/trace_3d_res64_bf16_c
 srun -n 1 --ntasks-per-node=1 $NSYS_CMD -o "${PROFILE_DIR}/trace_3d_res64_bf16_eager" \
     $PY_EXEC $BENCHMARK_SCRIPT \
         --model TFNO --dim 3 --res 64 --batch 4 --precision bf16 --unroll 20
+
+# --- SATURATION TEST ---
+# Goal: Prove that Triton efficiency goes up when we give it enough work.
+# We increase batch size until close to OOM (try 16 or 32 for Res 64 if it fits, or stick to Res 32 with Batch 64)
+
+echo "--- Phase 3b: Saturation Test ---"
+# Nsight Profile a massive batch to see SM utilization rise
+srun -n 1 --ntasks-per-node=1 $NSYS_CMD -o "${PROFILE_DIR}/trace_saturation" \
+    $PY_EXEC $BENCHMARK_SCRIPT \
+        --model TFNO --dim 3 --res 32 --batch 64 --precision bf16 --compile --unroll 10
 
 echo ">>> Diagnostics Run Complete."
 echo ">>> CSV Data: $CSV_FILE"
