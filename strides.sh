@@ -1,8 +1,14 @@
-#!/bin/bash
-#SBATCH --time=00:05:00
-#SBATCH -C gpu
-#SBATCH --gpus=1
-#SBATCH --output=stride_check.out
+#!/bin/bash -l
+#SBATCH --account=m4647
+#SBATCH --constraint=gpu
+#SBATCH --qos=regular
+#SBATCH --nodes=1
+#SBATCH --gpus-per-node=1
+#SBATCH --cpus-per-task=32
+#SBATCH --time=02:00:00
+#SBATCH --job-name=mem_stride
+#SBATCH --output=check_strides.out
+#SBATCH -C 'gpu&hbm80g'
 
 module load python
 
