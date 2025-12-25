@@ -31,34 +31,46 @@ mkdir -p "$TORCHINDUCTOR_CACHE_DIR"
 echo ">>> Starting Nsight Compute Profiling on node $(hostname)"
 echo ">>> Saving reports to: $PROFILE_DIR"
 
-# Common arguments for the python script
+# Common Arguments
 COMMON_ARGS="--model TFNO --dim 3 --res 64 --batch 4 --precision bf16 --compile --unroll 5"
 
-# --- TARGET 1: The FFT Kernel ---
+# --- TARGET 1: The FFT Kernel (Efficiency & Strides) ---
 echo "--- Profiling Target 1: cuFFT Kernel ---"
 
 dcgmi profile --pause
 
-srun -n 1 --gpus-per-node=1 ncu \
-    --target-processes all \
-    --kernel-name "regular_fft" \
+ncu --target-processes all \
+    --kernel-name-base function \
+    -k regex:regular_fft \
     --launch-count 1 \
     --set full \
     --force-overwrite \
-    --outfile "${PROFILE_DIR}/ncu_fft_report" \
+    -o "${PROFILE_DIR}/ncu_fft_report" \
     $PY_EXEC $BENCHMARK_SCRIPT $COMMON_ARGS
 
-# --- TARGET 2: The Triton Fused Kernel ---
+if [ $? -eq 0 ]; then
+    echo ">>> FFT Profile Complete: ${PROFILE_DIR}/ncu_fft_report.ncu-rep"
+else
+    echo ">>> FFT Profile FAILED."
+fi
+
+# --- TARGET 2: The Triton Fused Kernel (Memory Bandwidth) ---
 echo "--- Profiling Target 2: Triton Fused Kernels ---"
 
-srun -n 1 --gpus-per-node=1 ncu \
-    --target-processes all \
-    --kernel-name "triton_" \
+ncu --target-processes all \
+    --kernel-name-base function \
+    -k regex:triton_ \
     --launch-count 1 \
     --section SpeedOfLight --section MemoryWorkloadAnalysis --section Occupancy \
     --force-overwrite \
-    --outfile "${PROFILE_DIR}/ncu_triton_report" \
+    -o "${PROFILE_DIR}/ncu_triton_report" \
     $PY_EXEC $BENCHMARK_SCRIPT $COMMON_ARGS
+
+if [ $? -eq 0 ]; then
+    echo ">>> Triton Profile Complete: ${PROFILE_DIR}/ncu_triton_report.ncu-rep"
+else
+    echo ">>> Triton Profile FAILED."
+fi
 
 dcgmi profile --resume
 
