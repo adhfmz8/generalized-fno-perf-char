@@ -87,7 +87,7 @@ echo "--- Phase 3: Targeted Nsight Systems Profiling ---"
 # -s cpu: Sample CPU backtraces to find Python overhead (critical for small batches)
 # --capture-range=cudaProfilerApi: Only profile the 'profiler.start()' region (skips warmup)
 
-NSYS_CMD="nsys profile -t cuda,nvtx,osrt,cudnn,cublas -s cpu --capture-range=cudaProfilerApi --stop-on-range-end=true --force-overwrite true"
+NSYS_CMD="nsys profile -t cuda,nvtx,osrt,cudnn,cublas -s cpu --capture-range=cudaProfilerApi --force-overwrite true"
 
 # 1. Clean up old profiles
 rm -f "${PROFILE_DIR}"/*.nsys-rep
