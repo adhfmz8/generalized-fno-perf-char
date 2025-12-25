@@ -25,25 +25,28 @@ except ImportError:
 
 
 def patch_spectral_conv_for_bf16():
-    """
-    Monkey-patches the SpectralConv class to ensure FFTs are run in float32,
-    which is required for torch.compile with bfloat16.
-    """
     from neuralop.layers.spectral_convolution import SpectralConv
     from torch.cuda.amp import custom_fwd
 
-    # Store the original forward pass
     original_forward = SpectralConv.forward
 
-    # Define a new forward pass with autocast control
     @custom_fwd(cast_inputs=torch.float32)
     def patched_forward(self, x, *args, **kwargs):
-        # This will now run in float32, avoiding the compile error
+        # --- PROFILING DIAGNOSTIC ---
+        # Print stride info only once per run to avoid spam
+        if not hasattr(self, "has_printed_stride"):
+            print(f"\n[DIAGNOSTIC] Input to SpectralConv:")
+            print(f"  Shape: {x.shape}")
+            print(f"  Strides: {x.stride()}")
+            print(f"  Is Contiguous? {x.is_contiguous()}")
+            print(
+                f"  Is Channels Last? {x.is_contiguous(memory_format=torch.channels_last)}"
+            )
+            self.has_printed_stride = True
+        # ---------------------------
         return original_forward(self, x, *args, **kwargs)
 
-    # Apply the patch
     SpectralConv.forward = patched_forward
-    print("Applied bfloat16 compatibility patch to SpectralConv.")
 
 
 def count_parameters(model):
