@@ -5,10 +5,10 @@
 #SBATCH --nodes=1
 #SBATCH --gpus-per-node=1
 #SBATCH --cpus-per-task=32
-#SBATCH --time=00:30:00
-#SBATCH --job-name=fno_sanity_check
-#SBATCH --output=logs/sanity_check-%j.out
-#SBATCH --error=logs/sanity_check-%j.err
+#SBATCH --time=00:45:00
+#SBATCH --job-name=fno_scaling_killshot
+#SBATCH --output=logs/killshot-%j.out
+#SBATCH --error=logs/killshot-%j.err
 #SBATCH -C 'gpu&hbm80g'
 
 # --- Setup ---
@@ -17,47 +17,43 @@ module load cudatoolkit
 PY_EXEC="$SCRATCH/no_paper_env/bin/python"
 BENCHMARK_SCRIPT="$SLURM_SUBMIT_DIR/benchmark_v2.py"
 
-echo ">>> Starting FNO vs TFNO Sanity Check"
-echo ">>> Goal: Demonstrate parameter explosion in 3D Dense FNO"
+echo ">>> Starting FNO vs TFNO Mode Scaling 'Kill Shot'"
+echo ">>> Goal: Demonstrate Cubic Parameter Scaling in 3D Dense FNO"
 
-# Create a temporary file to hold the comparison table
-RESULTS_FILE="fno_vs_tfno_results.txt"
-echo "Model,Res,Batch,Latency(ms),Mem(MB),Params(M)" > $RESULTS_FILE
+# Create a clean results file
+RESULTS_FILE="mode_scaling_results.csv"
+echo "Model,Modes,Res,Latency(ms),Mem(MB),Params(M),Status" > $RESULTS_FILE
 
-# --- Function to run and parse specific metrics ---
-run_check() {
+# --- Test Function ---
+run_test() {
     MODEL=$1
-    RES=$2
-    BATCH=$3
+    MODES=$2
     
     echo "---------------------------------------------------"
-    echo "Running: $MODEL 3D @ Res $RES, Batch $BATCH"
+    echo "Running: $MODEL 3D @ Modes=$MODES (Res 64, Batch 1)"
     
-    # Run the benchmark
+    # We use '|| true' to prevent the script from exiting if FNO OOMs
     OUTPUT=$($PY_EXEC $BENCHMARK_SCRIPT \
         --model $MODEL \
         --dim 3 \
-        --res $RES \
-        --batch $BATCH \
+        --res 64 \
+        --batch 1 \
         --width 64 \
-        --modes 16 \
+        --modes $MODES \
         --precision tf32 \
         --unroll 10 2>&1)
     
     EXIT_CODE=$?
     
     if [ $EXIT_CODE -ne 0 ]; then
-        echo "FAILED (Likely OOM)"
-        echo "$MODEL,$RES,$BATCH,FAILED,FAILED,FAILED" >> $RESULTS_FILE
+        echo ">>> FAILED (Likely OOM)"
+        echo "$MODEL,$MODES,64,0,0,0,FAILED" >> $RESULTS_FILE
     else
-        # Parse the CSV line from the output
-        # CSV Format from benchmark_v2.py:
-        # RESULT,Model,Dim,Res,Batch,Prec,Lat,Thr,Mem,Comp,Data,Params,GFlops,TFlops
-        
+        # Parse output
+        # RESULT format: RESULT,Model,Dim,Res,Batch,Prec,Lat,Thr,Mem,Comp,Data,Params...
         CSV_LINE=$(echo "$OUTPUT" | grep "RESULT,")
         
-        # Extract relevant fields using cut (comma delimiter)
-        # 2: Model, 4: Res, 5: Batch, 7: Latency, 9: Mem, 12: Params
+        # Extract fields
         LATENCY=$(echo $CSV_LINE | cut -d',' -f7)
         MEM=$(echo $CSV_LINE | cut -d',' -f9)
         PARAMS=$(echo $CSV_LINE | cut -d',' -f12)
@@ -66,22 +62,26 @@ run_check() {
         echo "  > Memory:  ${MEM} MB"
         echo "  > Params:  ${PARAMS} M"
         
-        echo "$MODEL,$RES,$BATCH,$LATENCY,$MEM,$PARAMS" >> $RESULTS_FILE
+        echo "$MODEL,$MODES,64,$LATENCY,$MEM,$PARAMS,SUCCESS" >> $RESULTS_FILE
     fi
 }
 
-# --- 1. The Champion: TFNO (Our Baseline) ---
-run_check "TFNO" 64 1
+# --- The Comparison Loop ---
 
-# --- 2. The Challenger: Dense FNO (Same Config) ---
-# Warning: This might OOM or be extremely heavy
-run_check "FNO" 64 1
+# 1. Baseline (Modes 16)
+run_test "TFNO" 16
+run_test "FNO" 16
 
-# --- 3. The Fallback: Dense FNO (Smaller Config) ---
-# If the above fails, this shows that even at small scale it is heavy
-run_check "FNO" 32 1
+# 2. Mid-Range (Modes 24)
+run_test "TFNO" 24
+run_test "FNO" 24
+
+# 3. High-Fidelity (Modes 32)
+# Dense FNO params should explode here.
+run_test "TFNO" 32
+run_test "FNO" 32
 
 echo "---------------------------------------------------"
-echo ">>> SUMMARY RESULTS <<<"
+echo ">>> FINAL SCALING TABLE <<<"
 column -t -s "," $RESULTS_FILE
 echo "---------------------------------------------------"
