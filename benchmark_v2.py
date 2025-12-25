@@ -15,6 +15,14 @@ except ImportError as e:
     print(f"Import Error: {e}. Install with: pip install neuraloperator")
     sys.exit(1)
 
+# Try importing fvcore for FLOP counting
+try:
+    from fvcore.nn import FlopCountAnalysis
+
+    HAS_FVCORE = True
+except ImportError:
+    HAS_FVCORE = False
+
 
 def patch_spectral_conv_for_bf16():
     """
@@ -22,7 +30,7 @@ def patch_spectral_conv_for_bf16():
     which is required for torch.compile with bfloat16.
     """
     from neuralop.layers.spectral_convolution import SpectralConv
-    from torch.cuda.amp import custom_fwd, custom_bwd
+    from torch.cuda.amp import custom_fwd
 
     # Store the original forward pass
     original_forward = SpectralConv.forward
@@ -36,6 +44,36 @@ def patch_spectral_conv_for_bf16():
     # Apply the patch
     SpectralConv.forward = patched_forward
     print("Applied bfloat16 compatibility patch to SpectralConv.")
+
+
+def count_parameters(model):
+    return sum(p.numel() for p in model.parameters() if p.requires_grad)
+
+
+def register_nvtx_hooks(model):
+    """
+    Registers NVTX ranges for major layers to clean up Nsight visualization.
+    Only targets FNO-relevant blocks to avoid timeline clutter.
+    """
+
+    def pre_hook(module, input):
+        torch.cuda.nvtx.range_push(module.__class__.__name__)
+
+    def post_hook(module, input, output):
+        torch.cuda.nvtx.range_pop()
+
+    # Apply only to specific layers of interest
+    for name, module in model.named_modules():
+        class_name = module.__class__.__name__
+        # Instrument high-level blocks and heavy compute layers
+        if any(
+            x in class_name
+            for x in ["SpectralConv", "MLP", "FNO", "Block", "SkipConnection"]
+        ):
+            module.register_forward_pre_hook(pre_hook)
+            module.register_forward_hook(post_hook)
+
+    print("NVTX hooks registered for granular profiling.")
 
 
 # Compute-Bound Baseline: Heavy CNN
@@ -129,25 +167,20 @@ def run_benchmark(args):
 
     if args.precision == "bf16":
         patch_spectral_conv_for_bf16()
+
     # --- Precision Setup ---
     # Default to High (TF32 allowed)
     torch.backends.cuda.matmul.allow_tf32 = True
     torch.backends.cudnn.allow_tf32 = True
 
     if args.precision == "fp32":
-        # Strictly turn off TF32 for pure FP32 comparison
         torch.backends.cuda.matmul.allow_tf32 = False
         torch.backends.cudnn.allow_tf32 = False
         amp_ctx = nullcontext()
-        dtype_val = torch.float32
     elif args.precision == "tf32":
-        # TF32 is enabled by flags above, context remains FP32
         amp_ctx = nullcontext()
-        dtype_val = torch.float32
     elif args.precision == "bf16":
-        # Use Autocast for Mixed Precision
         amp_ctx = torch.autocast(device_type="cuda", dtype=torch.bfloat16)
-        dtype_val = torch.bfloat16
     else:
         raise ValueError("Unknown precision")
 
@@ -167,8 +200,35 @@ def run_benchmark(args):
         model = model.to(device)
         model.eval()
 
+        # --- Metrics: Parameters & FLOPs ---
+        param_count_m = count_parameters(model) / 1e6
+
+        flops_g = 0.0
+        if HAS_FVCORE:
+            try:
+                # Calculate FLOPs on a single forward pass
+                # Warning: fvcore may warn on FFTs, but gives a decent estimate for the rest
+                with amp_ctx:
+                    flop_analyzer = FlopCountAnalysis(model, x1)
+                    # Ignore warnings for cleaner output
+                    flop_analyzer.warn_unsupported_ops = False
+                    flops_g = flop_analyzer.total() / 1e9
+            except Exception as e:
+                # Fallback if fvcore fails (common with complex numbers or custom ops)
+                pass
+
+        # --- NVTX Instrumentation ---
+        # Apply hooks BEFORE compilation (compiled models usually inherit hooks,
+        # but sometimes hooks break graph capture. If so, move this after).
+        # We apply it here for granular Eager profiling.
+        if not args.compile:
+            register_nvtx_hooks(model)
+
         if args.compile:
-            # Using 'default' as requested to avoid CUDA Graph/Complex errors
+            # max-autotune is more aggressive but might take longer to warm up
+            # "default" is safer for initial diagnostics
+            # Suppress errors to allow fallbacks if graph breaks occur
+            torch._dynamo.config.suppress_errors = True
             model = torch.compile(model, mode="default")
 
         # --- Warmup ---
@@ -181,7 +241,7 @@ def run_benchmark(args):
         start_event = torch.cuda.Event(enable_timing=True)
         end_event = torch.cuda.Event(enable_timing=True)
 
-        # Optional: Nsight Systems Profiler Hooks
+        # Notify Nsight Systems that the "interesting" part is starting
         profiler.start()
 
         with torch.no_grad(), amp_ctx:
@@ -201,9 +261,16 @@ def run_benchmark(args):
 
         comp_str = "Yes" if args.compile else "No"
 
+        # Calculate TFLOPs/s utilization if FLOPs available
+        # TFLOPs/s = (GFLOPs * batch) / (latency_sec * 1000)
+        tflops_per_sec = 0.0
+        if flops_g > 0:
+            tflops_per_sec = (flops_g * args.batch) / (avg_latency_ms / 1000.0) / 1000.0
+
         print(
             f"RESULT,{args.model},{args.dim}D,{args.res},{args.batch},{args.precision},"
-            f"{avg_latency_ms:.4f},{throughput:.2f},{max_mem_mb:.2f},{comp_str},{args.data}"
+            f"{avg_latency_ms:.4f},{throughput:.2f},{max_mem_mb:.2f},{comp_str},"
+            f"{args.data},{param_count_m:.2f},{flops_g:.2f},{tflops_per_sec:.2f}"
         )
 
     except Exception as e:
@@ -211,12 +278,10 @@ def run_benchmark(args):
             f"FAILED: {args.model} Res{args.res} Prec{args.precision}: {e}",
             file=sys.stderr,
         )
-        # Print a dummy CSV line to allow analysis tools to see the failure
+        # Dummy CSV line for error handling
         print(
-            f"ERR,{args.model},{args.dim}D,{args.res},{args.batch},{args.precision},0,0,0,{args.compile},Error"
+            f"ERR,{args.model},{args.dim}D,{args.res},{args.batch},{args.precision},0,0,0,{args.compile},Error,0,0,0"
         )
-        # import traceback
-        # traceback.print_exc()
 
 
 if __name__ == "__main__":
